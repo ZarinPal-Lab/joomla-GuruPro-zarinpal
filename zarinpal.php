@@ -4,7 +4,7 @@
  * @subpackage  com_Guru
  * @subpackage 	trangell_Zarinpal
  * @copyright   trangell team => https://trangell.com
- * @copyright   Copyright (C) 20016 Open Source Matters, Inc. All rights reserved.
+ * @copyright   Copyright (C) 2017 Open Source Matters, Inc. All rights reserved.
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
@@ -70,35 +70,51 @@ class plgGurupaymentZarinpal extends JPlugin{
 
 		$app	= JFactory::getApplication();
 		$jinput = $app->input;
-		$Authority = $jinput->get->get('Authority', '0', 'INT');
+		$Authority = $jinput->get->get('Authority', 'STRING');
 		$status = $jinput->get->get('Status', '', 'STRING');
 	
 		if (checkHack::checkString($status)){
 			if ($status == 'OK') {
 				try {
-				     $client = new SoapClient('https://www.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']); 
+				//	$client = new SoapClient('https://www.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']);
 					//$client = new SoapClient('https://sandbox.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']); // for local
 
-					$result = $client->PaymentVerification(
+				/*	$result = $client->PaymentVerification(
 						[
 							'MerchantID' => $params->get('merchant_id'),
 							'Authority' => $Authority,
 							'Amount' => $Amount/10,
 						]
-					);
-					$resultStatus = abs($result->Status); 
-					if ($resultStatus == 100) {
+					);*/
+				//////////////////////////////////////////////////////////////////////////////////////
+					$data = array("merchant_id" => $params->get('merchant_id'), "authority" => $Authority, "amount" => $Amount/10);
+					$jsonData = json_encode($data);
+					$ch = curl_init('https://api.zarinpal.com/pg/v4/payment/verify.json');
+					curl_setopt($ch, CURLOPT_USERAGENT, 'ZarinPal Rest Api v4');
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+					curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+						'Content-Type: application/json',
+						'Content-Length: ' . strlen($jsonData)
+					));
+					$result = curl_exec($ch);
+					curl_close($ch);
+					$result = json_decode($result, true);
+					/// //////////////////////////////////////////////////////////////////////////////
+					//$resultStatus = abs($result->Status);
+					if ($result['data']['code'] == 100) {
 						$out['pay'] = 'ipn';
-						$message = "کد پیگیری".$result->RefID;
+						$message = "کد پیگیری".$result['data']['ref_id'];
 						$app->enqueueMessage($message, 'message');
 					} 
 					else {
 						$out['pay'] = 'fail';
-						$msg= $this->getGateMsg($resultStatus); 
+						$msg= $this->getGateMsg($result['errors']['code']);
 						$app->redirect($cancel_return, '<h2>'.$msg.'</h2>', $msgType='Error'); 
 					}
 				}
-				catch(\SoapFault $e) {
+				catch(Exception $e) {
 					$out['pay'] = 'fail';
 					$msg= $this->getGateMsg('error'); 
 					$app->redirect($cancel_return, '<h2>'.$msg.'</h2>', $msgType='Error'); 
@@ -144,10 +160,10 @@ class plgGurupaymentZarinpal extends JPlugin{
 		$CallbackURL = JURI::root().'index.php?option=com_guru&controller=guruBuy&processor='.$param['processor'].'&task='.$param['task'].'&sid='.$param['sid'].'&order_id='.$post['order_id'].'&customer_id='.intval($post['customer_id']).'&pay=wait';
 		
 		try {
-			  $client = new SoapClient('https://www.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']); 	
+			//$client = new SoapClient('https://www.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']);
 			//$client = new SoapClient('https://sandbox.zarinpal.com/pg/services/WebGate/wsdl', ['encoding' => 'UTF-8']); // for local
 
-			$result = $client->PaymentRequest(
+			/*$result = $client->PaymentRequest(
 				[
 				'MerchantID' => $params->get('merchant_id'),
 				'Amount' => $Amount,
@@ -156,18 +172,46 @@ class plgGurupaymentZarinpal extends JPlugin{
 				'Mobile' => '',
 				'CallbackURL' => $CallbackURL,
 				]
-			);
+			);*/
 			
-			$resultStatus = abs($result->Status); 
-			if ($resultStatus == 100) {
-			//	Header('Location: https://www.zarinpal.com/pg/StartPay/'.$result->Authority); 
-				$app->redirect('https://www.zarinpal.com/pg/StartPay/'.$result->Authority);  // for local/
+			//$resultStatus = abs($result->Status);
+			//////////////////////////////////////////////////////////////////////////////////////
+			$data = array("merchant_id" => $params->get('merchant_id'),
+				"amount" => $Amount,
+				"callback_url" => $CallbackURL,
+				"description" => $Description,
+				"metadata" => [ "email" => "0","mobile"=>"0"],
+			);
+			$jsonData = json_encode($data);
+			$ch = curl_init('https://api.zarinpal.com/pg/v4/payment/request.json');
+			curl_setopt($ch, CURLOPT_USERAGENT, 'ZarinPal Rest Api v1');
+			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+				'Content-Type: application/json',
+				'Content-Length: ' . strlen($jsonData)
+			));
+
+			$result = curl_exec($ch);
+			$err = curl_error($ch);
+			$result = json_decode($result, true, JSON_PRETTY_PRINT);
+			curl_close($ch);
+			/// //////////////////////////////////////////////////////////////////////////////////
+			if ($result['data']['code'] == 100) {
+				//if ($params->get('zaringate') == 0){
+					$app->redirect('https://www.zarinpal.com/pg/StartPay/'.$result['data']["authority"]);
+				//}
+				//else {
+					//$app->redirect('https://www.zarinpal.com/pg/StartPay/'.$result->Authority.'‪/ZarinGate‬‬');
+				//}
+				//$app->redirect('https://sandbox.zarinpal.com/pg/StartPay/'.$result->Authority);  // for local/
 			} else {
 				$msg= $this->getGateMsg('error');
-				$app->redirect($cancel_return, '<h2>'.$msg.$resultStatus .'</h2>', $msgType='Error'); 
+				$app->redirect($cancel_return, '<h2>'.$msg.$result['errors']['code'] .'</h2>', $msgType='Error');
 			}
 		}
-		catch(\SoapFault $e) {
+		catch(Exception $e) {
 			$msg= $this->getGateMsg('error');
 			$app->redirect($cancel_return, '<h2>'.$msg.'</h2>', $msgType='Error'); 
 		}
