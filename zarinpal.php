@@ -206,6 +206,16 @@ class plgGurupaymentZarinpal extends JPlugin{
 					//$app->redirect('https://www.zarinpal.com/pg/StartPay/'.$result->Authority.'‪/ZarinGate‬‬');
 				//}
 				//$app->redirect('https://sandbox.zarinpal.com/pg/StartPay/'.$result->Authority);  // for local/
+				echo'<html><body>
+<script type="text/javascript" src="https://cdn.zarinpal.com/zarinak/v1/checkout.js"></script>
+<script type="text/javascript">
+window.onload = function () {
+Zarinak.setAuthority("' . $result['data']['authority'] . '");
+Zarinak.showQR();
+Zarinak.open();
+};
+</script>
+</body></html>';
 			} else {
 				$msg= $this->getGateMsg('error');
 				$app->redirect($cancel_return, '<h2>'.$msg.$result['errors']['code'] .'</h2>', $msgType='Error');
